@@ -1,0 +1,6 @@
+{
+  "name": "Laxmi Lotto",
+  "description": "Laxmi Lotto Color Prediction Application",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
