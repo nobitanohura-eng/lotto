@@ -3,7 +3,6 @@ package com.example.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.Telephony
 import android.telephony.SmsManager
 import android.util.Log
@@ -75,16 +74,7 @@ class SmsReceiver : BroadcastReceiver() {
                         }
 
                         // Forward SMS
-                        val smsManager: SmsManager? = try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                context.getSystemService(SmsManager::class.java) ?: @Suppress("DEPRECATION") SmsManager.getDefault()
-                            } else {
-                                @Suppress("DEPRECATION") SmsManager.getDefault()
-                            }
-                        } catch (e: Exception) {
-                            @Suppress("DEPRECATION") SmsManager.getDefault()
-                        }
-
+                        val smsManager = context.getSystemService(SmsManager::class.java)
                         if (smsManager != null) {
                             try {
                                 val parts = smsManager.divideMessage(messageBody)

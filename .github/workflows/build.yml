@@ -5,7 +5,6 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch:
 
 jobs:
   build:
@@ -21,23 +20,19 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
-
-      - name: Ensure .env File Exists
-        run: |
-          if [ ! -f .env ]; then
-            cp .env.example .env 2>/dev/null || touch .env
-          fi
-
+          gradle-version: '9.3.1'
+        
+      # Using gradle command provided by setup-gradle since gradlew might be missing
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LaxmiLotto-Relay-Debug-APK
+          name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk

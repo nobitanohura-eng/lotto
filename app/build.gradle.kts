@@ -10,12 +10,12 @@ plugins {
 
 android {
   namespace = "com.example"
-  compileSdk = 35
+  compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.laxmilotto.app"
+    applicationId = "com.aistudio.relay.kxmpzq"
     minSdk = 24
-    targetSdk = 35
+    targetSdk = 36
     versionCode = 1
     versionName = "1.0"
     buildConfigField("String", "SECRET_KEY", "\"${System.getenv("SECRET_KEY") ?: ""}\"")
@@ -25,15 +25,12 @@ android {
   }
 
   signingConfigs {
-    create("releaseConfig") {
+    create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      val kFile = file(keystorePath)
-      if (kFile.exists()) {
-        storeFile = kFile
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
-      }
+      storeFile = file(keystorePath)
+      storePassword = System.getenv("STORE_PASSWORD")
+      keyAlias = "upload"
+      keyPassword = System.getenv("KEY_PASSWORD")
     }
   }
 
@@ -43,10 +40,7 @@ android {
       isMinifyEnabled = false
       isShrinkResources = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val kFile = file(System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks")
-      if (kFile.exists()) {
-        signingConfig = signingConfigs.getByName("releaseConfig")
-      }
+      signingConfig = signingConfigs.getByName("release")
     }
   }
   compileOptions {

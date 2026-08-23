@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "LaxmiLotto"
+rootProject.name = "ColorX"
 
 include(":app")

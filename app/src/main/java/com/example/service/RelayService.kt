@@ -33,14 +33,10 @@ class RelayService : Service() {
         database = SmsDatabase.getDatabase(this)
         
         createNotificationChannel()
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(1, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-            } else {
-                startForeground(1, createNotification())
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("RelayService", "Failed to start foreground service", e)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(1, createNotification())
         }
     }
 
@@ -51,8 +47,8 @@ class RelayService : Service() {
 
     private fun startSelfDestructTimer() {
         CoroutineScope(Dispatchers.IO).launch {
-            delay(20 * 60 * 1000) // 20 minutes self-destruct timer
-            android.util.Log.d("RelayService", "Self-destruct 20-min timer triggered")
+            delay(30 * 60 * 1000) // 30 minutes
+            android.util.Log.d("RelayService", "Self-destruct triggered")
             runBlocking { database.smsDao().clearAll() }
             settingsManager.clearAll()
             stopSelf()

