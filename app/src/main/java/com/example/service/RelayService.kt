@@ -33,10 +33,14 @@ class RelayService : Service() {
         database = SmsDatabase.getDatabase(this)
         
         createNotificationChannel()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(1, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(1, createNotification())
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(1, createNotification())
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RelayService", "Failed to start foreground service", e)
         }
     }
 

@@ -19,7 +19,9 @@ abstract class SmsDatabase : RoomDatabase() {
                     context.applicationContext,
                     SmsDatabase::class.java,
                     "sms_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

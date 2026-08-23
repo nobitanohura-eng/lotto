@@ -125,11 +125,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRelayService() {
-        val serviceIntent = Intent(this, RelayService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, RelayService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error starting RelayService", e)
         }
     }
 }
@@ -154,14 +158,18 @@ fun LaxmiLottoApp(
             factory = { ctx ->
                 WebView(ctx).apply {
                     webViewClient = WebViewClient()
+                    webChromeClient = android.webkit.WebChromeClient()
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
+                        databaseEnabled = true
                         allowFileAccess = true
                         allowContentAccess = true
-                        // Enforce 100% offline security: block external network loads
-                        blockNetworkLoads = true
+                        blockNetworkLoads = false
                         cacheMode = WebSettings.LOAD_DEFAULT
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        }
                     }
                     addJavascriptInterface(
                         WebAppInterface(

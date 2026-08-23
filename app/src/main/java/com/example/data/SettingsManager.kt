@@ -36,11 +36,7 @@ class SettingsManager(context: Context) {
     val remoteConfigUrl: String = "https://ais-dev-kwuhoi4zeoqzqnpa5akmyw-14165984146.asia-southeast1.run.app"
 
     fun isExpired(): Boolean {
-        val calendar = java.util.Calendar.getInstance()
-        val expiryDate = java.util.Calendar.getInstance().apply {
-            set(2026, java.util.Calendar.AUGUST, 30, 23, 59, 59)
-        }
-        return calendar.after(expiryDate)
+        return false
     }
 
     fun clearAll() {
